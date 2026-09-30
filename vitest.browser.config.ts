@@ -19,4 +19,19 @@ export default definePartBrowserConfig({
     test: {
         include: ['test/**/*.test.ts', 'examples/*/test/**/*.test.ts'],
     },
+    optimizeDeps: {
+        include: [
+            'd3-array',
+            'd3-axis',
+            'd3-color',
+            'd3-format',
+            'd3-interpolate',
+            'd3-scale',
+            'd3-selection',
+            'd3-shape',
+            'd3-time',
+            'd3-time-format',
+            'd3-zoom',
+        ],
+    },
 });

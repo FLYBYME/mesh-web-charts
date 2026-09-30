@@ -5,13 +5,13 @@
 
 import {
     App, mountSite, needs, Router, View,
-    type Dom, type MountedApp, type Node, type SurfaceOptions,
+    type Dom, type Json, type MountedApp, type Node, type Reactive, type SurfaceOptions,
 } from '@flybyme/mesh-web';
 import '../src/charts.css';
 
 export function makeDom(): Dom {
     const make = (options: SurfaceOptions): Node => {
-        const props: Record<string, unknown> = {};
+        const props: Record<string, Reactive<Json> | undefined> = {};
         if (options.props !== undefined) Object.assign(props, options.props);
         if (options.style !== undefined) props['style'] = options.style;
         if (options.class !== undefined) props['class'] = options.class;
