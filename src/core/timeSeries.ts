@@ -548,13 +548,32 @@ export function timeSeries(host: HTMLElement, options: TimeSeriesOptions = {}): 
         return s?.unit ?? options.unit;
     }
 
+    const legendButtons = new Map<string, HTMLButtonElement>();
+
     function renderLegend(): void {
-        legendContainer.innerHTML = '';
         if (seriesData.length <= 1) {
             legendContainer.style.display = 'none';
+            legendButtons.clear();
+            legendContainer.innerHTML = '';
             return;
         }
         legendContainer.style.display = 'flex';
+
+        const currentKeys = seriesData.map((s) => s.key).join(',');
+        const existingKeys = [...legendButtons.keys()].join(',');
+
+        if (currentKeys === existingKeys) {
+            for (const s of seriesData) {
+                const btn = legendButtons.get(s.key);
+                if (btn !== undefined) {
+                    btn.setAttribute('aria-pressed', String(!hiddenSeries.has(s.key)));
+                }
+            }
+            return;
+        }
+
+        legendContainer.innerHTML = '';
+        legendButtons.clear();
 
         seriesData.forEach((s, idx) => {
             const btn = document.createElement('button');
@@ -588,6 +607,7 @@ export function timeSeries(host: HTMLElement, options: TimeSeriesOptions = {}): 
                 render();
             });
 
+            legendButtons.set(s.key, btn);
             legendContainer.appendChild(btn);
         });
     }

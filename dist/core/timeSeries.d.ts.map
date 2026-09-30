@@ -1,1 +1,1 @@
-{"version":3,"file":"timeSeries.d.ts","sourceRoot":"","sources":["../../src/core/timeSeries.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAMH,OAAO,KAAK,EACmC,kBAAkB,EAAE,iBAAiB,EACnF,MAAM,aAAa,CAAC;AAsBrB,wBAAgB,UAAU,CAAC,IAAI,EAAE,WAAW,EAAE,OAAO,GAAE,iBAAsB,GAAG,kBAAkB,CA+9BjG"}
+{"version":3,"file":"timeSeries.d.ts","sourceRoot":"","sources":["../../src/core/timeSeries.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAMH,OAAO,KAAK,EACmC,kBAAkB,EAAE,iBAAiB,EACnF,MAAM,aAAa,CAAC;AAsBrB,wBAAgB,UAAU,CAAC,IAAI,EAAE,WAAW,EAAE,OAAO,GAAE,iBAAsB,GAAG,kBAAkB,CAm/BjG"}

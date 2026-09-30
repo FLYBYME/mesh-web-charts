@@ -25,6 +25,7 @@ export function meter(host, options) {
     const track = document.createElement('div');
     track.className = 'chart-meter-track';
     track.setAttribute('role', 'meter');
+    track.setAttribute('aria-label', options.label);
     const fill = document.createElement('div');
     fill.className = 'chart-meter-fill';
     track.appendChild(fill);

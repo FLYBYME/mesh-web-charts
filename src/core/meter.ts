@@ -33,6 +33,7 @@ export function meter(host: HTMLElement, options: MeterOptions): ChartInstance<n
     const track = document.createElement('div');
     track.className = 'chart-meter-track';
     track.setAttribute('role', 'meter');
+    track.setAttribute('aria-label', options.label);
 
     const fill = document.createElement('div');
     fill.className = 'chart-meter-fill';

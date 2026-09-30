@@ -362,17 +362,37 @@ export function bars(host: HTMLElement, options: BarsOptions = {}): ChartInstanc
         tooltip.style.top = `${top}px`;
     }
 
+    const legendButtons = new Map<string, HTMLButtonElement>();
+
     function renderLegend(seriesList: readonly string[]): void {
-        legendContainer.innerHTML = '';
         if (seriesList.length <= 1) {
             legendContainer.style.display = 'none';
+            legendButtons.clear();
+            legendContainer.innerHTML = '';
             return;
         }
         legendContainer.style.display = 'flex';
 
+        const currentKeys = seriesList.join(',');
+        const existingKeys = [...legendButtons.keys()].join(',');
+
+        if (currentKeys === existingKeys) {
+            for (const s of seriesList) {
+                const btn = legendButtons.get(s);
+                if (btn !== undefined) {
+                    btn.setAttribute('aria-pressed', String(!hiddenSeries.has(s)));
+                }
+            }
+            return;
+        }
+
+        legendContainer.innerHTML = '';
+        legendButtons.clear();
+
         seriesList.forEach((s, idx) => {
             const btn = document.createElement('button');
             btn.className = 'chart-legend-item';
+            btn.setAttribute('type', 'button');
             const isVisible = !hiddenSeries.has(s);
             btn.setAttribute('aria-pressed', String(isVisible));
 
@@ -401,6 +421,7 @@ export function bars(host: HTMLElement, options: BarsOptions = {}): ChartInstanc
                 render(currentData);
             });
 
+            legendButtons.set(s, btn);
             legendContainer.appendChild(btn);
         });
     }
