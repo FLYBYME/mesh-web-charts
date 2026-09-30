@@ -1,0 +1,239 @@
+Build `@flybyme/mesh-web-charts`: an advanced, mobile-ready charting package for mesh-web sites,
+drawn with d3. You are working in /home/ubuntu/code/mesh/mesh-web-charts (an empty git repo, branch
+main). Read this whole prompt before writing anything.
+
+================================================================================
+WHY THIS EXISTS
+================================================================================
+
+The platform's operator pages (surfdns.net: nodes, pods, volumes, storage pools) need live graphs:
+CPU, memory, disk, network, request rates and latency, volume copy sync and rebuild progress, pod
+state over time. Metrics come from VictoriaMetrics (Prometheus query API), scraped every 10 s, and
+the pages must feel real-time: new points slide in without the chart being rebuilt, on a phone as
+well as a desktop. The owner wants this to be excellent, not a demo.
+
+There is no charting anywhere in the stack today. mesh-web (the framework) renders an abstract
+description tree and has no SVG element; mesh-web-kit (the UI pieces) has no charts. You build a new
+package beside the kit.
+
+================================================================================
+READ FIRST (in this order)
+================================================================================
+
+1. /home/ubuntu/code/mesh/mesh-web-kit/README.md -- the rules every UI piece follows. They apply
+   here, word for word, with the exceptions stated below. Also copy its package layout exactly:
+   package.json (scripts, peerDependencies, exports), tsconfig.json + tsconfig.check.json,
+   vitest.browser.config.ts, test/harness.ts, test/a11y.ts, `dist/` committed.
+2. /home/ubuntu/code/mesh/mesh-web-kit/src/kit.css -- the `--kit-*` tokens. Charts use the same
+   approach: CSS custom properties with `light-dark()` so light and dark schemes both work, system
+   colours as defaults, every class prefixed `chart-`.
+3. /home/ubuntu/code/mesh/mesh-web-kit/test/a11y.browser.test.ts and test/a11y.ts -- how the kit
+   runs axe-core in both colour schemes. Charts must pass the same audit.
+4. /home/ubuntu/code/mesh/mesh-web/docs/app-model.md -- sections on Component, props, and why the
+   description layer never contains DOM types.
+5. /home/ubuntu/code/company/AGENTS.md -- "Writing a web app".
+
+================================================================================
+HARD RULES (the owner's; breaking one means the work is thrown away)
+================================================================================
+
+- NEVER JSX, TSX or any JSX runtime. Not in src, tests, or examples.
+- No `as any`, no `as never`, no `@ts-ignore`. Typed end to end; `unknown` plus a type guard at every
+  boundary. `strict` and `noUncheckedIndexedAccess` stay on.
+- d3 as ES modules, only the pieces used (d3-scale, d3-shape, d3-array, d3-axis, d3-selection,
+  d3-zoom, d3-time, d3-time-format, d3-format, d3-interpolate, d3-color as needed) -- never the
+  `d3` bundle. They are `dependencies` of this package (a site's build installs with
+  `--omit=dev`); mesh-web is a `peerDependency` and a devDependency, as in the kit.
+- Commit to local `main` as you go, small commits with real messages. Do NOT push. Do NOT add any
+  Co-Authored-By or other trailer lines to commit messages.
+- Do not touch any other repository. If you believe mesh-web or the kit needs a change, write it
+  in your report instead.
+- `npm test` (typecheck, then every browser test) must pass at the end. Report honestly if not.
+
+================================================================================
+ARCHITECTURE -- TWO LAYERS
+================================================================================
+
+LAYER 1: THE CORE (framework-free; this is most of the work)
+
+A chart is created on a plain host element and owns the SVG inside it:
+
+    const chart = timeSeries(host: HTMLElement, options: TimeSeriesOptions);
+    chart.update(data);            // new data: joins by series key, animates only what changed
+    chart.append(points);          // live points: slides the window, no rebuild
+    chart.resize();                // or automatic, via ResizeObserver on the host
+    chart.dispose();               // removes listeners, observers, timers and the SVG
+
+Everything d3 does happens inside `host`. The core has no mesh-web import at all, so it is tested
+directly in the browser with a bare <div>, and could be used from anything.
+
+LAYER 2: THE MESH-WEB BRIDGE (thin)
+
+mesh-web already has the escape hatch for this: the `dom` capability's `surface` (read
+/home/ubuntu/code/mesh/mesh-web/src/contribution/capabilities.ts `SurfaceOptions` and `Dom`, and
+src/render/dom.ts where a surface node is rendered). Write one small component per chart
+(`TimeSeriesChart`, `Sparkline`, ...) that declares `needs('dom')` and mounts the core on the
+surface's element. See THE SURFACE at the end for the exact pattern and its one trap.
+
+================================================================================
+THE CHARTS
+================================================================================
+
+1. timeSeries -- the main one.
+   - line, area and stacked area; many series; one y axis, plus an optional right axis for a series
+     marked `axis: 'right'`
+   - time x axis with sensible ticks at every width (d3-time), local time, 24 h
+   - thresholds (horizontal lines with labels, e.g. "90 %"), and shaded bands (e.g. an incident)
+   - gaps: a missing scrape is a gap in the line, never interpolated across (a `null` value, or a
+     time step larger than `gapAfter`)
+   - live mode: `append` adds points to the right and drops points older than `window`
+     (e.g. 15 min); the x domain follows "now" smoothly; animation respects
+     `prefers-reduced-motion`
+   - units and formatting: bytes, bytes/s, %, seconds, count (use d3-format; share one `units`
+     module with the other charts)
+
+2. sparkline -- a tiny inline trend (for list rows and stat tiles): no axes, last value marked,
+   min/max optional, same data shape as a single series.
+
+3. bars -- grouped and stacked, vertical and horizontal (horizontal for long category names, e.g.
+   per-node disk use).
+
+4. meter -- one value against a capacity with warn/bad thresholds (disk free on a pool, memory on a
+   node). Linear bar; a readable label with the numbers, not only colour.
+
+5. heatmap -- time on x, buckets on y (latency histograms), colour by count, with a legend scale.
+
+6. stateTimeline -- bands of discrete states over time, one row per thing (a pod's phase:
+   Pending/Running/Failed; a volume copy's mode: RW/WO/ERR). Colours from tokens, the state name in
+   the tooltip and in the accessible table.
+
+================================================================================
+DATA IN
+================================================================================
+
+    interface Series { key: string; label: string; points: readonly Point[]; axis?: 'left' | 'right';
+                       unit?: Unit; colour?: string /* a token name, not a hex */ }
+    type Point = readonly [time: number /* ms */, value: number | null];
+
+Adapters, pure functions, fully tested:
+- `fromPromMatrix(response, { label })` -- a VictoriaMetrics/Prometheus `query_range` response
+  (`{ status, data: { resultType: 'matrix', result: [{ metric: {...}, values: [[seconds, "1.5"], ...] }] } }`)
+  to `Series[]`. Values arrive as strings; "NaN" and "+Inf" handled; seconds to ms; `label` builds a
+  series label from the metric's labels (default: all labels, `name=value`, sorted).
+- `fromPromVector(response)` for instant queries (to feed meter and bars).
+- Decimation: `lttb(points, threshold)` (Largest-Triangle-Three-Buckets). timeSeries applies it
+  automatically when a series has more points than pixels.
+
+================================================================================
+MOBILE AND INTERACTION
+================================================================================
+
+- Pointer Events only (one code path for mouse, touch and pen).
+- Touch: drag pans, pinch zooms the time axis (d3-zoom), a tap shows the crosshair and tooltip at
+  that time, a tap outside hides it. A vertical page scroll must still work over a chart: only
+  capture a horizontal drag (`touch-action: pan-y` on the plot).
+- Mouse: hover crosshair; wheel zooms only with ctrl/cmd held (never hijack page scroll); drag pans;
+  double-click resets.
+- Tooltip lists every series' value at that time, sorted by value, and always stays inside the
+  viewport (flips sides near an edge; on a narrow screen it docks below the chart instead).
+- Legend: toggles a series; on narrow widths it collapses to a scrollable row; minimum touch target
+  44x44 px.
+- Responsive: tick counts, label rotation and margins derive from the measured width; nothing
+  overflows its host at 320 px wide.
+- Zooming out of live mode pauses following "now"; a "Live" button returns to it.
+
+================================================================================
+ACCESSIBILITY (axe clean, both colour schemes, and genuinely usable)
+================================================================================
+
+- The SVG has `role="img"` and an `aria-label` that summarises (title, time range, latest value per
+  series, or "no data").
+- Each chart can render its data as a visually hidden <table> (option `table: true`, default on for
+  timeSeries and stateTimeline) so screen readers get the numbers.
+- The plot is focusable: arrow keys move the crosshair point by point, +/- zoom, 0 resets,
+  Escape hides the tooltip. Focus is visible.
+- Never colour alone: series differ by dash pattern too when there are more than 4, thresholds are
+  labelled, meter states are written in words.
+- Contrast: axis text and labels at least 4.5:1 against the page in light and dark.
+
+================================================================================
+PERFORMANCE (measure it; put the numbers in your report)
+================================================================================
+
+Target: a timeSeries with 20 series x 360 points (an hour at 10 s) appending one point per series
+every second stays under 4 ms of scripting per append on a desktop, and pan/zoom stays smooth. Use
+a data join keyed by series, update path `d` attributes rather than rebuilding elements, and batch
+work in one requestAnimationFrame per frame. Write a small benchmark test that asserts a generous
+upper bound so regressions show.
+
+================================================================================
+TESTS (vitest browser mode, real Chromium, as in the kit)
+================================================================================
+
+- Every chart: renders, updates by key without recreating unchanged series (assert element
+  identity), appends in live mode, resizes (change the host width, see ticks change), disposes
+  (no listeners, observers or timers left: assert via spies).
+- Interaction tests that PRESS things: pointer events for pan/pinch/tap (userEvent / dispatched
+  PointerEvents), keyboard crosshair, legend toggle, Live button.
+- Adapters and lttb: pure unit tests with real VictoriaMetrics response shapes, including NaN,
+  gaps and an empty result.
+- axe in light and dark for every chart type (copy test/a11y.ts's approach).
+- The benchmark above.
+
+================================================================================
+EXAMPLES
+================================================================================
+
+`examples/gallery/` served by `npm run example:gallery` (vite, port 5192): a small mesh-web App (copy
+the shape of mesh-web-kit's examples/console) showing every chart through the layer-2 components,
+with realistic fake data, a live timeSeries fed by a timer (simulating 10 s scrapes, sped up), and a
+320 px-wide phone frame.
+
+================================================================================
+THE SURFACE (layer 2) -- the existing mesh-web API, and its one trap
+================================================================================
+
+    import { Component, effect, needs, props, type Node } from '@flybyme/mesh-web';
+
+    export class TimeSeriesChart extends Component({
+        needs: needs('dom'),
+        props: props<{ series: () => readonly Series[]; options: TimeSeriesOptions; label: string }>(),
+    }) {
+        render(): Node {
+            return this.cx.dom.surface({
+                class: 'chart-host',
+                setup: (el) => {
+                    const chart = timeSeries(el, this.props.options);   // created ONCE
+                    const stop = effect(() => chart.update(this.props.series()));
+                    return () => { stop(); chart.dispose(); };
+                },
+            });
+        }
+    }
+
+(Check the real names -- `Component`, `props`, `effect`, how an effect is stopped, how props are
+read -- against mesh-web's exports and docs/app-model.md; the sketch shows the shape, not the exact
+spelling.)
+
+THE TRAP: mesh-web runs `setup` INSIDE an effect (src/render/dom.ts). Any signal read directly in
+`setup` makes the whole setup re-run -- teardown, then a brand-new chart -- on every change. That
+would rebuild the chart on every live point. So in `setup`, read nothing reactive except inside the
+chart's own inner `effect` (which has its own tracking), and read static options without tracking
+(or pass them as plain values). Write a test that proves it: append 20 points through the prop and
+assert the SVG element is the same object throughout and `setup` ran exactly once.
+
+A site that uses these components must grant `dom` (its App's `needs(...)` includes 'dom', and the
+chart component's own `needs` is a subset of its host's). Say so in the README.
+
+================================================================================
+WHEN YOU ARE DONE
+================================================================================
+
+Write agent-runs/results/01-charts-kit.md:
+- what is built, chart by chart, and what is not (be exact; no "mostly")
+- the measured performance numbers
+- `npm test` output summary (test files, tests, pass/fail)
+- anything in mesh-web or the kit you needed and did not have
+- the commits you made (`git log --oneline`)
+
+Stop when that report is written. Do not start unrelated work.

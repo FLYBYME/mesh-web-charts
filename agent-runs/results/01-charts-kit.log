@@ -1,0 +1,3 @@
+root agent idle; waiting up to 30m0s for 1 background task(s)
+I have launched the test suite in `mesh-web-kit` to verify the browser test harness and setup, and will proceed once it finishes.
+I have started `npm install` to install dependencies and type definitions, and will proceed once it finishes.

@@ -1,0 +1,15 @@
+// src/, the tests and the gallery together, with node types for the tests.
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "rootDir": ".",
+        "types": ["node"],
+        "baseUrl": ".",
+        "paths": {
+            // The gallery imports the package by name, the way a site does.
+            "@flybyme/mesh-web-charts": ["./src/index.ts"]
+        }
+    },
+    "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts"]
+}

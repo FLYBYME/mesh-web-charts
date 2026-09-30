@@ -1,0 +1,6 @@
+node_modules/
+*.tsbuildinfo
+
+# dist/ IS committed. mesh-serve's builder installs a site's dependencies with
+# `npm ci --omit=dev --ignore-scripts`, so a git dependency's `prepare` never runs there: a tag has
+# to contain the built package itself. Rebuild (`npm run build`) and commit dist/ before tagging.

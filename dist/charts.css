@@ -1,0 +1,9 @@
+/* @flybyme/mesh-web-charts CSS */
+:root {
+    --chart-page: Canvas;
+    --chart-panel: color-mix(in srgb, CanvasText 4%, Canvas);
+    --chart-ink: CanvasText;
+    --chart-muted: color-mix(in srgb, CanvasText 64%, Canvas);
+    --chart-edge: color-mix(in srgb, CanvasText 18%, Canvas);
+    --chart-radius: 8px;
+}
