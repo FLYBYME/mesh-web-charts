@@ -1,3 +1,11 @@
 root agent idle; waiting up to 30m0s for 1 background task(s)
 I have launched the test suite in `mesh-web-kit` to verify the browser test harness and setup, and will proceed once it finishes.
 I have started `npm install` to install dependencies and type definitions, and will proceed once it finishes.
+I have run `npm test` to verify our unit tests for adapters, LTTB, and units, and will proceed once it finishes.
+I have rerun the tests to confirm the fix, and will proceed once it finishes.
+I have launched typecheck and build to verify all chart implementations and their types, and will proceed once it finishes.
+I have run `npm run typecheck && npm run build` to verify the build, and will proceed once it finishes.
+I have run `npm test` to execute all tests including the browser suite, a11y audit, interaction tests, bridge tests, and performance benchmark. I will proceed once it finishes.
+I have run `npm run build && npm test` to verify the legend state preservation and meter accessibility fixes, and will proceed once it finishes.
+I have run `npm run typecheck && npm test` to verify the gallery example and all tests, and will proceed once it finishes.
+I have rerun `npm test` to verify all test suites including the gallery test, and will proceed once it finishes.
