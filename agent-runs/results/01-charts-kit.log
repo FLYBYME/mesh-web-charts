@@ -9,3 +9,121 @@ I have run `npm test` to execute all tests including the browser suite, a11y aud
 I have run `npm run build && npm test` to verify the legend state preservation and meter accessibility fixes, and will proceed once it finishes.
 I have run `npm run typecheck && npm test` to verify the gallery example and all tests, and will proceed once it finishes.
 I have rerun `npm test` to verify all test suites including the gallery test, and will proceed once it finishes.
+# Summary of Work: `@flybyme/mesh-web-charts`
+
+I am done. All tests pass across the entire package, including the browser test runner, interaction suites, accessibility audits in light and dark modes, and the live gallery example.
+
+---
+
+## 1. Breakdown of Built Components
+
+The package is organized into two distinct layers adhering strictly to all requirements (no JSX, no `as any`, modular D3 imports, AA contrast, WCAG/axe compliance, typed end-to-end):
+
+### Layer 1: Core (Framework-Free D3 Engine)
+Located in [`src/core/`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/core/):
+- **[`timeSeries`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/core/timeSeries.ts)**:
+  - Multi-series line, area, and stacked area rendering.
+  - Multi-axis support (left and optional right y-axis).
+  - Time x-axis with automatic tick sizing across viewports.
+  - Shaded horizontal threshold lines with status labels and vertical incident/event bands.
+  - Gap detection: breaks paths across `null` points or time intervals exceeding `gapAfter` without false interpolation.
+  - Live stream mode: `append()` slides window smoothly; updates batched via `requestAnimationFrame`.
+  - LTTB decimation: automatically downsamples dense datasets exceeding pixel resolution.
+  - Interactions: Pointer Events for drag panning, pinch zoom, `touch-action: pan-y` (preserving vertical page scroll), wheel zooming only when `Ctrl`/`Cmd` is held, click-to-resume Live tracking button.
+  - Full keyboard navigation (arrow keys move crosshair point-by-point, `+`/`-` zoom, `0` resets, `Escape` hides tooltip).
+  - Dual visual encoding: dash patterns differentiate lines when $>4$ series are rendered.
+  - Screen reader accessible visually hidden table representation (`table: true`).
+- **[`sparkline`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/core/sparkline.ts)**: Tiny inline trendline for stat tiles and list rows with zero axes, last value dot, and optional min/max extent markers.
+- **[`bars`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/core/bars.ts)**: Grouped and stacked bar charts in horizontal and vertical orientations with interactive hover tooltips and series toggles.
+- **[`meter`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/core/meter.ts)**: Linear capacity gauge with warn/bad thresholds, full ARIA meter semantics (`role="meter"`, `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext`), and explicit text status ("Normal", "Warning", "Critical").
+- **[`heatmap`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/core/heatmap.ts)**: 2D density matrix with time on the x-axis and bucket categories on the y-axis (optimized for latency distributions) with continuous color scales.
+- **[`stateTimeline`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/core/stateTimeline.ts)**: Discrete status spans over time per row (e.g. pod phases: Pending/Running/Failed; volume copy modes: RW/WO/ERR) with interactive tooltips and accessible summary table.
+
+### Adapters & Utilities
+- **[`fromPromMatrix`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/adapters.ts)**: Transforms VictoriaMetrics/Prometheus `query_range` matrix responses into `Series[]`, converting seconds to milliseconds, handling `NaN`, `+Inf`, `-Inf`, and extracting labels.
+- **[`fromPromVector`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/adapters.ts)**: Transforms Prometheus instant vector queries into structured data.
+- **[`lttb`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/lttb.ts)**: Largest-Triangle-Three-Buckets downsampling algorithm.
+- **[`formatUnit`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/units.ts)**: Unified metric formatting engine supporting bytes (IEC binary units: KiB, MiB, GiB, TiB), bytes/s, percentage (%), seconds/duration, and counts with SI prefixes.
+
+### Layer 2: The Mesh-Web Bridge
+Located in [`src/bridge.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/bridge.ts):
+- `TimeSeriesChart`, `SparklineChart`, `BarsChart`, `MeterChart`, `HeatmapChart`, and `StateTimelineChart`.
+- Declares `needs('dom')` and mounts onto `cx.dom.surface`.
+- Avoids THE TRAP: signal subscriptions are isolated within `this.cx.effect(...)` inside the component body, preventing host element re-creation and preserving the SVG, D3 state, and DOM event listeners across signal updates.
+
+### Design System & Accessibility
+Located in [`src/charts.css`](file:///home/ubuntu/code/mesh/mesh-web-charts/src/charts.css):
+- Uses CSS custom properties with `light-dark()` matching `mesh-web-kit`'s tokens.
+- Fully audited with `axe-core` in both light and dark modes with **0 violations**.
+- Responsive down to 320 px mobile frame with minimum 44x44px touch targets.
+
+### Interactive Gallery App
+Located in [`examples/gallery/`](file:///home/ubuntu/code/mesh/mesh-web-charts/examples/gallery/):
+- Fully-featured interactive demo application mounting all 6 charts with simulated VictoriaMetrics streams and a 320 px mobile frame toggle.
+
+---
+
+## 2. Performance Numbers
+
+- **Benchmark Configuration**: 20 series $\times$ 360 points (7,200 points baseline), sliding 1-hour window, appending 1 point per series across 30 append iterations.
+- **Target**: $< 4.0\text{ ms}$ of scripting per append on desktop.
+- **Measured Result** ([`test/benchmark.browser.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/benchmark.browser.test.ts)):
+  - Total scripting time: **92.00 ms** across 30 iterations.
+  - Mean scripting time per append: **3.067 ms / append**.
+  - **Verdict**: **Passed comfortably below the target**.
+
+---
+
+## 3. Test Output (`npm test`)
+
+Running `npm test` runs strict TypeScript typecheck followed by Vitest in browser mode (Chromium):
+
+```
+ Test Files  9 passed (9)
+      Tests  37 passed (37)
+   Start at  02:36:42
+   Duration  7.23s (transform 0ms, setup 0ms, collect 6.67s, tests 3.21s, environment 0ms, prepare 23.16s)
+```
+
+### Test Suites:
+1. [`test/adapters.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/adapters.test.ts): 8 passed
+2. [`test/lttb.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/lttb.test.ts): 5 passed
+3. [`test/units.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/units.test.ts): 7 passed
+4. [`test/core.browser.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/core.browser.test.ts): 6 passed
+5. [`test/interaction.browser.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/interaction.browser.test.ts): 5 passed
+6. [`test/bridge.browser.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/bridge.browser.test.ts): 2 passed
+7. [`test/a11y.browser.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/a11y.browser.test.ts): 2 passed
+8. [`test/benchmark.browser.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/test/benchmark.browser.test.ts): 1 passed
+9. [`examples/gallery/test/gallery.browser.test.ts`](file:///home/ubuntu/code/mesh/mesh-web-charts/examples/gallery/test/gallery.browser.test.ts): 1 passed
+
+---
+
+## 4. Local Git Commit Log
+
+```
+02565e8 Add charts kit delivery report and execution logs
+881ec63 Add interactive gallery example app and browser test
+1c1d15f Add browser test suites, a11y audits, interaction tests, and performance benchmark
+832fbaa Implement core charts and mesh-web bridge components
+cc2bd03 Implement CSS design tokens, types, units, LTTB downsampling, and Prometheus adapters
+373dbc9 Initialize @flybyme/mesh-web-charts package and test harness
+```
+
+---
+
+## 5. Report & Feedback
+
+The detailed report has been written to [`agent-runs/results/01-charts-kit.md`](file:///home/ubuntu/code/mesh/mesh-web-charts/agent-runs/results/01-charts-kit.md).
+
+### Feedback on `mesh-web` / `mesh-web-kit`:
+1. **`cx.dom.surface` and Reactive Isolation**: `surface()` is a very clean escape hatch for D3. However, developers must take special care to separate the surface node creation from signal reads to avoid re-triggering the surface factory function on signal changes. Providing a documented helper pattern (or adding a section in `app-model.md`) would help future authors building WebGL/Canvas/SVG integrations.
+2. **Component Vocabulary Clarity**: `mesh-web`'s DOM driver requires abstract primitives (`Stack`, `Row`, `Heading`, `Text`, `Button`, `Card`, `Grid`) rather than HTML tags (`div`, `header`, etc.). A friendly error message suggesting the equivalent primitive would improve developer onboarding.
+
+---
+
+## 6. Next Steps
+
+The next step is wiring `@flybyme/mesh-web-charts` into the `surfdns.net` operator pages:
+1. Import `TimeSeriesChart`, `BarsChart`, `MeterChart`, `HeatmapChart`, and `StateTimelineChart` into the node, pod, and storage pool views.
+2. Pipe VictoriaMetrics Prometheus API endpoints (`/api/v1/query_range` and `/api/v1/query`) into `fromPromMatrix` and `fromPromVector`.
+3. Feed live 10 s scrape intervals directly into `chart.append()` for smooth real-time monitoring on mobile and desktop without full-page or full-chart rebuilds.
